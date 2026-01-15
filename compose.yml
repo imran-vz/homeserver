@@ -250,7 +250,7 @@ services:
       - TZ=${TZ:-Asia/Kolkata}
     network_mode: service:audiobookshelf-tailscale
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/healthcheck"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -430,7 +430,10 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      disable: true
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ===========================================
   # IMMICH - Photo Management
