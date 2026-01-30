@@ -1,9 +1,4 @@
 services:
-  # ===========================================
-  # TAILSCALE SIDECARS
-  # ===========================================
-
-  # Tailscale sidecar for AdGuard Home (DNS server)
   adguard-tailscale:
     container_name: adguard-tailscale
     image: tailscale/tailscale:latest
@@ -30,7 +25,6 @@ services:
       - homelab_frontend
     restart: unless-stopped
 
-  # Tailscale sidecar for Immich
   immich-tailscale:
     container_name: immich-tailscale
     image: tailscale/tailscale:latest
@@ -58,7 +52,6 @@ services:
       - homelab_frontend
     restart: unless-stopped
 
-  # Tailscale sidecar for Beszel
   beszel-tailscale:
     container_name: beszel-tailscale
     image: tailscale/tailscale:latest
@@ -85,7 +78,6 @@ services:
       - homelab_frontend
     restart: unless-stopped
 
-  # Tailscale sidecar for VERT
   vert-tailscale:
     container_name: vert-tailscale
     image: tailscale/tailscale:latest
@@ -112,7 +104,6 @@ services:
       - homelab_frontend
     restart: unless-stopped
 
-  # Tailscale sidecar for Stirling-PDF
   stirling-tailscale:
     container_name: stirling-tailscale
     image: tailscale/tailscale:latest
@@ -139,11 +130,6 @@ services:
       - homelab_frontend
     restart: unless-stopped
 
-  # ===========================================
-  # ZEROBYTE - Backup Automation
-  # ===========================================
-
-  # Tailscale sidecar for Zerobyte
   zerobyte-tailscale:
     container_name: zerobyte-tailscale
     image: tailscale/tailscale:latest
@@ -170,13 +156,41 @@ services:
       - homelab_frontend
     restart: unless-stopped
 
+  audiobookshelf-tailscale:
+    container_name: audiobookshelf-tailscale
+    image: tailscale/tailscale:latest
+    hostname: audiobookshelf
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=--advertise-tags=tag:container
+      - TS_SERVE_CONFIG=/config/serve.json
+      - TS_ENABLE_HEALTH_CHECK=true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9002/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - ./data/tailscale/audiobookshelf:/var/lib/tailscale
+      - ./config/tailscale-audiobookshelf-serve.json:/config/serve.json:ro
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      - homelab_frontend
+    restart: unless-stopped
+
   zerobyte-server:
     container_name: zerobyte-server
-    image: ghcr.io/nicotsx/zerobyte:v0.20
+    image: ghcr.io/nicotsx/zerobyte:${ZEROBYTE_VERSION:-latest}
     security_opt:
       - no-new-privileges:true
     environment:
       - TZ=${TZ:-Asia/Kolkata}
+      - APP_SECRET=${ZEROBYTE_APP_SECRET}
+      - BASE_URL=${ZEROBYTE_BASE_URL}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./data/zerobyte:/var/lib/zerobyte
@@ -205,36 +219,6 @@ services:
     depends_on:
       zerobyte-tailscale:
         condition: service_healthy
-    restart: unless-stopped
-
-  # ===========================================
-  # AUDIOBOOKSHELF - Audiobook & Podcast Server
-  # ===========================================
-
-  audiobookshelf-tailscale:
-    container_name: audiobookshelf-tailscale
-    image: tailscale/tailscale:latest
-    hostname: audiobookshelf
-    environment:
-      - TS_AUTHKEY=${TS_AUTHKEY:-}
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_EXTRA_ARGS=--advertise-tags=tag:container
-      - TS_SERVE_CONFIG=/config/serve.json
-      - TS_ENABLE_HEALTH_CHECK=true
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9002/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    volumes:
-      - ./data/tailscale/audiobookshelf:/var/lib/tailscale
-      - ./config/tailscale-audiobookshelf-serve.json:/config/serve.json:ro
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    networks:
-      - homelab_frontend
     restart: unless-stopped
 
   audiobookshelf-server:
@@ -268,10 +252,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ===========================================
-  # VERT - File Converter
-  # ===========================================
-
   vert-server:
     container_name: vert
     image: ghcr.io/vert-sh/vert:latest
@@ -297,10 +277,6 @@ services:
       vert-tailscale:
         condition: service_healthy
     restart: unless-stopped
-
-  # ===========================================
-  # STIRLING-PDF - PDF Tools
-  # ===========================================
 
   stirling-pdf:
     container_name: stirling-pdf
@@ -338,10 +314,6 @@ services:
       stirling-tailscale:
         condition: service_healthy
     restart: unless-stopped
-
-  # ===========================================
-  # BESZEL - Lightweight Server Monitoring
-  # ===========================================
 
   beszel-server:
     container_name: beszel
@@ -402,10 +374,6 @@ services:
       - beszel-server
     restart: unless-stopped
 
-  # ===========================================
-  # ADGUARD HOME - DNS Server
-  # ===========================================
-
   adguard-server:
     container_name: adguard
     image: adguard/adguardhome:latest
@@ -434,10 +402,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # ===========================================
-  # IMMICH - Photo Management
-  # ===========================================
 
   immich-server:
     container_name: immich-server
@@ -575,10 +539,6 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
-
-  # ===========================================
-  # JELLYFIN - Media Server
-  # ===========================================
 
   # jellyfin:
   #   container_name: jellyfin
