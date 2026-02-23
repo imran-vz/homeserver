@@ -1,4 +1,4 @@
-.PHONY: help ps up down restart setup
+.PHONY: help ps up down restart setup backfill
 
 # Default target
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "  make down      - Stop all services"
 	@echo "  make restart   - Restart all services"
 	@echo "  make recreate  - Recreate all services containers"
+	@echo "  make backfill  - Run analytics backfill"
 
 # Setup the environment
 setup:
@@ -35,3 +36,7 @@ restart:
 
 recreate:
 	docker compose up -d --force-recreate
+
+# Run analytics backfill
+backfill:
+	docker compose run --rm cocoacomaa-backfill
