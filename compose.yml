@@ -231,6 +231,41 @@ services:
             - homelab_frontend
         restart: unless-stopped
 
+    jellyfin-tailscale:
+        container_name: jellyfin-tailscale
+        image: tailscale/tailscale:${TAILSCALE_VERSION:-latest}
+        hostname: jellyfin
+        environment:
+            - TS_AUTHKEY=${TS_AUTHKEY:-}
+            - TS_STATE_DIR=/var/lib/tailscale
+            - TS_EXTRA_ARGS=--advertise-tags=tag:container
+            - TS_SERVE_CONFIG=/config/serve.json
+            - TS_ENABLE_HEALTH_CHECK=true
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "wget",
+                    "-q",
+                    "--spider",
+                    "http://localhost:9002/healthz",
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 10s
+        volumes:
+            - ./data/tailscale/jellyfin:/var/lib/tailscale
+            - ./config/tailscale-jellyfin-serve.json:/config/serve.json:ro
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        cap_add:
+            - NET_ADMIN
+            - NET_RAW
+        networks:
+            - homelab_frontend
+        restart: unless-stopped
+
     tugtainer-server:
         container_name: tugtainer
         image: ghcr.io/quenary/tugtainer:${TUGTAINER_VERSION:-latest}
@@ -269,6 +304,8 @@ services:
     zerobyte-server:
         container_name: zerobyte-server
         image: ghcr.io/nicotsx/zerobyte:${ZEROBYTE_VERSION:-latest}
+        cap_add:
+            - SYS_ADMIN
         security_opt:
             - no-new-privileges:true
         environment:
@@ -279,8 +316,8 @@ services:
             - /etc/localtime:/etc/localtime:ro
             - ./data/zerobyte:/var/lib/zerobyte
             # Mount external volumes for backup
-            - /Volumes/SN770/homeserver-data:/mnt/homeserver-data:ro
-            - /Volumes/SN770/Photos:/mnt/photos:ro
+            - /Volumes/Backup/Photos:/mnt/photos
+            - ./data/immich/:/mnt/immich
         networks:
             - homelab_frontend
         ports:
@@ -311,7 +348,7 @@ services:
         security_opt:
             - no-new-privileges:true
         volumes:
-            - /Volumes/SN770/Audiobooks:/audiobooks
+            - /Volumes/Backup/Books:/audiobooks
             - ./data/audiobookshelf/config:/config
             - ./data/audiobookshelf/metadata:/metadata
         environment:
@@ -482,9 +519,9 @@ services:
             - no-new-privileges:true
         volumes:
             # Main upload location on external SSD (large storage for photos/videos)
-            - /Volumes/SN770/homeserver-data/immich:/data
+            - ./data/immich/:/data
             # External library - read-write access to existing Photos folder
-            - /Volumes/SN770/Photos:/mnt/media/photos
+            - /Volumes/Backup/Photos:/mnt/media/photos
             # Timezone
             - /etc/localtime:/etc/localtime:ro
         environment:
@@ -610,48 +647,6 @@ services:
             retries: 5
             start_period: 30s
         restart: unless-stopped
-
-    # jellyfin:
-    #   container_name: jellyfin
-    #   image: jellyfin/jellyfin:latest
-    #   user: "1000:1000"
-    #   read_only: true
-    #   security_opt:
-    #     - no-new-privileges:true
-    #   cap_drop:
-    #     - ALL
-    #   tmpfs:
-    #     - /tmp:size=512m,mode=1777
-    #     - /transcode:size=4g,mode=1777
-    #   volumes:
-    #     # Config/cache on internal SSD (fast)
-    #     - ./data/jellyfin/config:/config
-    #     - ./data/jellyfin/cache:/cache
-    #     # Media on external SSD - read-only
-    #     - /Volumes/SN770/Movies:/media/movies:ro
-    #     - /Volumes/SN770/Series:/media/tv:ro
-    #   environment:
-    #     - TZ=${TZ:-Asia/Kolkata}
-    #     - JELLYFIN_PublishedServerUrl=http://localhost:8096
-    #   networks:
-    #     - homelab_frontend
-    #   ports:
-    #     - "127.0.0.1:8096:8096"
-    #   deploy:
-    #     resources:
-    #       limits:
-    #         cpus: "4.0"
-    #         memory: 4G
-    #       reservations:
-    #         cpus: "0.5"
-    #         memory: 512M
-    #   healthcheck:
-    #     test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
-    #     interval: 30s
-    #     timeout: 10s
-    #     retries: 3
-    #     start_period: 30s
-    #   restart: unless-stopped
 
 # ===========================================
 # NETWORKS

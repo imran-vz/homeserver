@@ -30,7 +30,7 @@ Tailscale sidecars must become healthy before the app container starts.
 - A Tailscale auth key (tagged keys recommended)
 
 Optional (depending on services):
-- External SSD mounted at `/Volumes/SN770` (used for large media/backups)
+- External SSD mounted at `/Volumes/Backup` (used for large media/backups)
 
 ## Configuration
 
@@ -100,7 +100,7 @@ Conventions used in this repo:
 ## Storage notes
 
 - `./data/` (internal SSD): fast storage for state, DBs, caches
-- `/Volumes/SN770/` (external SSD): large storage for media/backups (service-dependent)
+- `/Volumes/Backup/` (external SSD): large storage for media/backups (service-dependent)
 
 ## Troubleshooting
 

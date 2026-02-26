@@ -1,0 +1,19 @@
+{
+	"TCP": {
+		"443": {
+			"HTTPS": true
+		}
+	},
+	"Web": {
+		"jellyfin.tuna-mirzam.ts.net:443": {
+			"Handlers": {
+				"/": {
+					"Proxy": "http://host.docker.internal:8096"
+				}
+			}
+		}
+	},
+	"AllowFunnel": {
+		"jellyfin.tuna-mirzam.ts.net:443": false
+	}
+}

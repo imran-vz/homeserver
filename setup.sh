@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Configuration
 INTERNAL_DATA_DIR="${SCRIPT_DIR}/data"
-EXTERNAL_SSD_PATH="/Volumes/SN770"
+EXTERNAL_SSD_PATH="/Volumes/Backup"
 EXTERNAL_DATA_DIR="${EXTERNAL_SSD_PATH}/homeserver-data"
 CONFIG_DIR="${SCRIPT_DIR}/config"
 
