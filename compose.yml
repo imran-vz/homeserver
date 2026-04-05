@@ -99,16 +99,6 @@ services:
       - ./data/tailscale/audiobookshelf:/var/lib/tailscale
       - ./config/tailscale-audiobookshelf-serve.json:/config/serve.json:ro
 
-  tugtainer-tailscale:
-    <<: *tailscale-sidecar
-    container_name: tugtainer-tailscale
-    hostname: tugtainer
-    volumes:
-      - ./data/tailscale/tugtainer:/var/lib/tailscale
-      - ./config/tailscale-tugtainer-serve.json:/config/serve.json:ro
-    ports:
-      - "127.0.0.1:9412:80"
-
   jellyfin-tailscale:
     <<: *tailscale-sidecar
     container_name: jellyfin-tailscale
@@ -121,44 +111,6 @@ services:
       - "host.docker.internal:host-gateway"
 
   # ─── Application Services ──────────────────────────────────────
-
-  tugtainer-server:
-    container_name: tugtainer
-    image: ghcr.io/quenary/tugtainer:${TUGTAINER_VERSION:-latest}
-    security_opt:
-      - no-new-privileges:true
-    labels:
-      - dev.quenary.tugtainer.protected=true
-    environment:
-      - TZ=${TZ:-Asia/Kolkata}
-      # Set to 'debug' or 'trace' for deeper troubleshooting
-      - LOG_LEVEL=info
-    volumes:
-      - ./data/tugtainer:/tugtainer
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Uncomment to enable private registry digest checks (GHCR, Docker Hub, etc.)
-      # Requires 'docker login <registry>' on the host first.
-      # - ~/.docker/config.json:/root/.docker/config.json:ro
-    network_mode: service:tugtainer-tailscale
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-        reservations:
-          cpus: "0.1"
-          memory: 64M
-    logging: *default-logging
-    depends_on:
-      tugtainer-tailscale:
-        condition: service_healthy
-    restart: unless-stopped
 
   zerobyte-server:
     container_name: zerobyte-server
