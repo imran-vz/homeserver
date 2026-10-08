@@ -1,0 +1,33 @@
+# Nonsecret template for installed Sand revision 4263d2e (not v1.4.0).
+# Copy to ~/sand.yml with mode 600; never put credentials in this file.
+# APP_ID must become a numeric App ID and SSH authentication must be resolved
+# privately before validation. No listener starts until all earlier gates pass.
+runners:
+  - name: dbunk
+    vm:
+      source:
+        type: local
+        name: homeserver-dbunk-base
+      hardware:
+        ramGb: 8
+        cpuCores: 2
+      cache:
+        host: ~/.cache/sand/actions-runner
+      run:
+        noGraphics: true
+        noClipboard: true
+        nested: false
+      ssh:
+        user: admin
+        port: 22
+        # Set a VM-local password privately; this release has no key-auth support.
+        password: "" # Intentional invalid placeholder; prevents default-password fallback.
+    provisioner:
+      type: github
+      config:
+        appId: APP_ID
+        organization: imran-vz
+        repository: dbunk
+        privateKeyPath: ~/.config/sand/dbunk-app.private-key.pem
+        runnerName: homeserver-dbunk-sand
+        extraLabels: [homeserver, docker]

@@ -1,0 +1,47 @@
+# Nonsecret template for installed Sand revision 4263d2e (not v1.4.0).
+# Copy outside Git with mode 600 and resolve SSH authentication privately.
+# Do not run until the base passes check-dbunk-guest.sh, including clone checks.
+runners:
+  - name: dbunk-smoke
+    stopAfter: 1
+    vm:
+      source:
+        type: local
+        name: homeserver-dbunk-base
+      hardware:
+        ramGb: 8
+        cpuCores: 2
+      run:
+        noGraphics: true
+        noClipboard: true
+        nested: false
+      ssh:
+        user: admin
+        port: 22
+        # Set a VM-local password privately; this release has no key-auth support.
+        password: "" # Intentional invalid placeholder; prevents default-password fallback.
+    provisioner:
+      type: script
+      config:
+        run: |
+          bash -se <<'DBUNK_SMOKE'
+          set -Eeuo pipefail
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = aarch64
+          test "$(id -u)" -ne 0
+          sudo -n true
+          git --version
+          python3 --version
+          pkg-config --exists openssl
+          pkg-config --exists 'dbus-1 >= 1.6'
+          ld.lld --version
+          python3 -c 'import pathlib, tomllib; c = tomllib.loads((pathlib.Path.home() / ".cargo/config.toml").read_text()); assert c["target"]["aarch64-unknown-linux-gnu"]["rustflags"] == ["-C", "link-arg=-fuse-ld=lld"]'
+          docker info >/dev/null
+          docker compose version
+          test ! -e "$HOME/actions-runner/.runner"
+          test ! -e "$HOME/actions-runner/.credentials"
+          test ! -e "$HOME/.dbunk-sand-smoke-sentinel"
+          # Alpine 3.22 index digest resolved on 2026-10-07; selects ARM64 explicitly.
+          docker run --rm --platform linux/arm64 alpine@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8 sh -ec 'test "$(uname -m)" = aarch64'
+          printf '%s\n' 'Disposable Dbunk VM' > "$HOME/.dbunk-sand-smoke-sentinel"
+          DBUNK_SMOKE

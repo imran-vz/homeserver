@@ -1,4 +1,6 @@
-.PHONY: help ps up down restart setup backfill
+.PHONY: help ps up down restart setup backfill sand-validate sand-start sand-stop sand-status
+
+SAND_FORMULA ?= homeserver/pilot/sand
 
 # Default target
 help:
@@ -10,6 +12,10 @@ help:
 	@echo "  make restart   - Restart all services"
 	@echo "  make recreate  - Recreate all services containers"
 	@echo "  make backfill  - Run analytics backfill"
+	@echo "  make sand-validate - Validate private Sand config (no VM start)"
+	@echo "  make sand-start    - Start Sand Homebrew service (after acceptance)"
+	@echo "  make sand-stop     - Stop Sand Homebrew service"
+	@echo "  make sand-status   - Check Sand prerequisites and Homebrew service"
 
 # Setup the environment
 setup:
@@ -40,3 +46,19 @@ recreate:
 # Run analytics backfill
 backfill:
 	docker compose run --rm cocoacomaa-backfill
+
+# Opt-in only: never part of the Compose stack lifecycle.
+# The local pinned formula always loads ~/sand.yml; validate that same file.
+sand-validate:
+	sand validate --config "$(HOME)/sand.yml"
+	sand run --dry-run --config "$(HOME)/sand.yml"
+
+sand-start: sand-validate
+	brew services start "$(SAND_FORMULA)"
+
+sand-stop:
+	brew services stop "$(SAND_FORMULA)"
+
+sand-status:
+	cd "$(HOME)" && sand doctor
+	brew services info "$(SAND_FORMULA)"
