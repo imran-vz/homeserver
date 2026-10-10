@@ -60,6 +60,46 @@ Other variables may be referenced by some services (e.g., Immich DB creds/versio
 - `make ps` — list services + ports
 - `make help` — show available targets
 
+## GitHub Actions runners
+
+The four runner services share one pinned GitHub Actions runner image and
+OrbStack's Docker socket, so jobs use the same Docker daemon and image store as
+the rest of this stack:
+
+- `github-runner-dbunk` → `imran-vz/dbunk`
+- `github-runner-kaalam` → `imran-vz/kaalam`
+- `github-runner-kadai` → `imran-vz/kadai`
+- `github-runner-synco` → `imran-vz/synco`
+
+GitHub personal accounts cannot share one runner registration across multiple
+repositories. Each service therefore runs a separate listener, while reusing
+the same image and configuration. Registration and work state lives in the
+corresponding gitignored `data/github-runner-<repo>/` directory.
+
+Initial registration uses a short-lived token passed only to a one-off
+configuration container; no GitHub access token is stored in Compose:
+
+```sh
+docker compose build github-runner-dbunk
+
+docker compose run --rm \
+  -e RUNNER_TOKEN='<short-lived registration token for imran-vz/dbunk>' \
+  -e RUNNER_CONFIG_ONLY=true \
+  github-runner-dbunk
+
+docker compose up -d \
+  github-runner-dbunk \
+  github-runner-kaalam \
+  github-runner-kadai \
+  github-runner-synco
+```
+
+All four repositories target their runner with the same labels:
+
+```yaml
+runs-on: [self-hosted, Linux, ARM64, homeserver, docker, orbstack]
+```
+
 ## Dbunk Sand runner
 
 Dbunk's backend CI now runs in a fresh Linux ARM64 Tart VM managed by Sand.
@@ -332,10 +372,8 @@ claim. No reboot, power or sleep policy was changed by the agent.
 Services are meant to be accessed via their **Tailscale hostname** (HTTPS) rather than host ports.
 
 Current hostnames (when enabled in `compose.yml`):
-- `adguard` — AdGuard Home
 - `immich` — Immich
 - `beszel` — Beszel monitoring
-- `stirling` — Stirling-PDF
 - `vert` — VERT converter
 - `zerobyte` — ZeroByte backups
 
@@ -366,8 +404,11 @@ Conventions used in this repo:
 
 ## Storage notes
 
-- `./data/` (internal SSD): fast storage for state, DBs, caches
-- `/Volumes/Backup/` (external SSD): large storage for media/backups (service-dependent)
+- `./data/` (internal SSD): fast storage for state, DBs, caches. Immich PostgreSQL stays here.
+- `/Volumes/Backup/homeserver-data/immich/` (external SSD): the complete Immich storage tree, mounted at `/data` in Immich and `/mnt/immich` in ZeroByte.
+- `/Volumes/Backup/Photos/` (external SSD): separate Immich external library, mounted at `/mnt/media/photos`.
+- Mount the external SSD before starting services. The Immich storage mounts use `create_host_path: false` so a missing path fails instead of creating an empty directory. Do not create a replacement directory at this path while the SSD is disconnected.
+- `/Volumes/Backup/` is currently ExFAT. Keep the PostgreSQL database on the internal APFS disk; maintain a separate backup of both the database and media (a copy on the same SSD is not protection against SSD failure).
 
 ## Troubleshooting
 

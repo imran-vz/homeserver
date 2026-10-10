@@ -8,6 +8,28 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
+x-github-runner-environment: &github-runner-environment
+  RUNNER_NAME: homeserver
+  RUNNER_LABELS: docker,orbstack,homeserver
+  RUNNER_WORKDIR: _work
+  DOCKER_HOST: unix:///var/run/docker.sock
+
+x-github-runner: &github-runner
+  image: homeserver/github-actions-runner:2.337.0
+  build:
+    context: ./github-runner
+    args:
+      RUNNER_UID: "501"
+      RUNNER_GID: "20"
+  platform: linux/arm64
+  init: true
+  # OrbStack exposes its Docker socket as root:root inside containers.
+  group_add:
+    - "0"
+  stop_grace_period: 2m
+  logging: *default-logging
+  restart: unless-stopped
+
 x-tailscale-sidecar: &tailscale-sidecar
   image: tailscale/tailscale:${TAILSCALE_VERSION:-latest}
   environment:
@@ -39,14 +61,6 @@ x-tailscale-sidecar: &tailscale-sidecar
 services:
   # ─── Tailscale Sidecars ────────────────────────────────────────
 
-  adguard-tailscale:
-    <<: *tailscale-sidecar
-    container_name: adguard-tailscale
-    hostname: adguard
-    volumes:
-      - ./data/tailscale/adguard:/var/lib/tailscale
-      - ./config/tailscale-adguard-serve.json:/config/serve.json:ro
-
   immich-tailscale:
     <<: *tailscale-sidecar
     container_name: immich-tailscale
@@ -70,16 +84,6 @@ services:
       - ./config/tailscale-beszel-serve.json:/config/serve.json:ro
     ports:
       - "127.0.0.1:8090:8090"
-
-  stirling-tailscale:
-    <<: *tailscale-sidecar
-    container_name: stirling-tailscale
-    hostname: stirling
-    volumes:
-      - ./data/tailscale/stirling:/var/lib/tailscale
-      - ./config/tailscale-stirling-serve.json:/config/serve.json:ro
-    ports:
-      - "127.0.0.1:8080:8080"
 
   zerobyte-tailscale:
     <<: *tailscale-sidecar
@@ -129,7 +133,11 @@ services:
       - ./data/zerobyte:/var/lib/zerobyte
       # Mount external volumes for backup
       - /Volumes/Backup/Photos:/mnt/photos
-      - ./data/immich/:/mnt/immich
+      - type: bind
+        source: /Volumes/Backup/homeserver-data/immich
+        target: /mnt/immich
+        bind:
+          create_host_path: false
     network_mode: service:zerobyte-tailscale
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:4096/login"]
@@ -180,41 +188,6 @@ services:
     logging: *default-logging
     depends_on:
       audiobookshelf-tailscale:
-        condition: service_healthy
-    restart: unless-stopped
-
-  stirling-pdf:
-    container_name: stirling-pdf
-    image: stirlingtools/stirling-pdf:${STIRLING_PDF_VERSION:-latest}
-    security_opt:
-      - no-new-privileges:true
-    volumes:
-      - ./data/stirling-pdf/tessdata:/usr/share/tessdata
-      - ./data/stirling-pdf/configs:/configs
-      - ./data/stirling-pdf/logs:/logs
-      - ./data/stirling-pdf/pipeline:/pipeline
-    environment:
-      - SECURITY_ENABLELOGIN=false
-      - LANGS=en_GB
-      - TZ=${TZ:-Asia/Kolkata}
-    network_mode: service:stirling-tailscale
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/info/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: "2.0"
-          memory: 2G
-        reservations:
-          cpus: "0.25"
-          memory: 256M
-    logging: *default-logging
-    depends_on:
-      stirling-tailscale:
         condition: service_healthy
     restart: unless-stopped
 
@@ -278,35 +251,53 @@ services:
       - beszel-server
     restart: unless-stopped
 
-  adguard-server:
-    container_name: adguard
-    image: adguard/adguardhome:${ADGUARDHOME_VERSION:-latest}
-    network_mode: service:adguard-tailscale
-    security_opt:
-      - no-new-privileges:true
-    volumes:
-      - ./data/adguard/work:/opt/adguardhome/work
-      - ./data/adguard/conf:/opt/adguardhome/conf
+  # ─── GitHub Actions Runners ────────────────────────────────────
+  # GitHub personal accounts cannot share one runner registration across
+  # repositories, so each repository gets a listener using the same image.
+
+  github-runner-dbunk:
+    <<: *github-runner
+    container_name: github-runner-dbunk
     environment:
-      - TZ=${TZ:-Asia/Kolkata}
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-        reservations:
-          cpus: "0.1"
-          memory: 64M
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging: *default-logging
-    depends_on:
-      adguard-tailscale:
-        condition: service_healthy
-    restart: unless-stopped
+      <<: *github-runner-environment
+      RUNNER_URL: https://github.com/imran-vz/dbunk
+      RUNNER_ROOT: /Users/imran/homeserver/data/github-runner-dbunk
+    volumes:
+      - ./data/github-runner-dbunk:/Users/imran/homeserver/data/github-runner-dbunk
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  github-runner-kaalam:
+    <<: *github-runner
+    container_name: github-runner-kaalam
+    environment:
+      <<: *github-runner-environment
+      RUNNER_URL: https://github.com/imran-vz/kaalam
+      RUNNER_ROOT: /Users/imran/homeserver/data/github-runner-kaalam
+    volumes:
+      - ./data/github-runner-kaalam:/Users/imran/homeserver/data/github-runner-kaalam
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  github-runner-kadai:
+    <<: *github-runner
+    container_name: github-runner-kadai
+    environment:
+      <<: *github-runner-environment
+      RUNNER_URL: https://github.com/imran-vz/kadai
+      RUNNER_ROOT: /Users/imran/homeserver/data/github-runner-kadai
+    volumes:
+      - ./data/github-runner-kadai:/Users/imran/homeserver/data/github-runner-kadai
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  github-runner-synco:
+    <<: *github-runner
+    container_name: github-runner-synco
+    environment:
+      <<: *github-runner-environment
+      RUNNER_URL: https://github.com/imran-vz/synco
+      RUNNER_ROOT: /Users/imran/homeserver/data/github-runner-synco
+    volumes:
+      - ./data/github-runner-synco:/Users/imran/homeserver/data/github-runner-synco
+      - /var/run/docker.sock:/var/run/docker.sock
 
   # ─── Immich Stack ──────────────────────────────────────────────
 
@@ -317,8 +308,12 @@ services:
     security_opt:
       - no-new-privileges:true
     volumes:
-      # Main upload location on external SSD (large storage for photos/videos)
-      - ./data/immich/:/data
+      # Full Immich storage tree on external SSD; fail if the path is missing.
+      - type: bind
+        source: /Volumes/Backup/homeserver-data/immich
+        target: /data
+        bind:
+          create_host_path: false
       # External library — read-write access to existing Photos folder
       - /Volumes/Backup/Photos:/mnt/media/photos
       # Timezone
@@ -386,7 +381,7 @@ services:
 
   immich-redis:
     container_name: immich-redis
-    image: docker.io/valkey/valkey:9@sha256:fb8d272e529ea567b9bf1302245796f21a2672b8368ca3fcb938ac334e613c8f
+    image: docker.io/valkey/valkey:9.1.2@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
     security_opt:
       - no-new-privileges:true
     volumes:
