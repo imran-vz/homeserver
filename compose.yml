@@ -8,28 +8,6 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
-x-github-runner-environment: &github-runner-environment
-  RUNNER_NAME: homeserver
-  RUNNER_LABELS: docker,orbstack,homeserver
-  RUNNER_WORKDIR: _work
-  DOCKER_HOST: unix:///var/run/docker.sock
-
-x-github-runner: &github-runner
-  image: homeserver/github-actions-runner:2.337.0
-  build:
-    context: ./github-runner
-    args:
-      RUNNER_UID: "501"
-      RUNNER_GID: "20"
-  platform: linux/arm64
-  init: true
-  # OrbStack exposes its Docker socket as root:root inside containers.
-  group_add:
-    - "0"
-  stop_grace_period: 2m
-  logging: *default-logging
-  restart: unless-stopped
-
 x-tailscale-sidecar: &tailscale-sidecar
   image: tailscale/tailscale:${TAILSCALE_VERSION:-latest}
   environment:
@@ -250,54 +228,6 @@ services:
     depends_on:
       - beszel-server
     restart: unless-stopped
-
-  # ─── GitHub Actions Runners ────────────────────────────────────
-  # GitHub personal accounts cannot share one runner registration across
-  # repositories, so each repository gets a listener using the same image.
-
-  github-runner-dbunk:
-    <<: *github-runner
-    container_name: github-runner-dbunk
-    environment:
-      <<: *github-runner-environment
-      RUNNER_URL: https://github.com/imran-vz/dbunk
-      RUNNER_ROOT: /Users/imran/homeserver/data/github-runner-dbunk
-    volumes:
-      - ./data/github-runner-dbunk:/Users/imran/homeserver/data/github-runner-dbunk
-      - /var/run/docker.sock:/var/run/docker.sock
-
-  github-runner-kaalam:
-    <<: *github-runner
-    container_name: github-runner-kaalam
-    environment:
-      <<: *github-runner-environment
-      RUNNER_URL: https://github.com/imran-vz/kaalam
-      RUNNER_ROOT: /Users/imran/homeserver/data/github-runner-kaalam
-    volumes:
-      - ./data/github-runner-kaalam:/Users/imran/homeserver/data/github-runner-kaalam
-      - /var/run/docker.sock:/var/run/docker.sock
-
-  github-runner-kadai:
-    <<: *github-runner
-    container_name: github-runner-kadai
-    environment:
-      <<: *github-runner-environment
-      RUNNER_URL: https://github.com/imran-vz/kadai
-      RUNNER_ROOT: /Users/imran/homeserver/data/github-runner-kadai
-    volumes:
-      - ./data/github-runner-kadai:/Users/imran/homeserver/data/github-runner-kadai
-      - /var/run/docker.sock:/var/run/docker.sock
-
-  github-runner-synco:
-    <<: *github-runner
-    container_name: github-runner-synco
-    environment:
-      <<: *github-runner-environment
-      RUNNER_URL: https://github.com/imran-vz/synco
-      RUNNER_ROOT: /Users/imran/homeserver/data/github-runner-synco
-    volumes:
-      - ./data/github-runner-synco:/Users/imran/homeserver/data/github-runner-synco
-      - /var/run/docker.sock:/var/run/docker.sock
 
   # ─── Immich Stack ──────────────────────────────────────────────
 
