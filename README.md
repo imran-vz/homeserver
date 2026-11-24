@@ -32,7 +32,8 @@ Jellyfin runs natively on the Mac mini and has no Tailscale sidecar.
 
 Keep Tailscale connected on the Mac mini and viewing device when using the
 Tailscale address. The former `https://jellyfin.tuna-mirzam.ts.net` sidecar
-address is retired. Jellyfin media, settings, and saved sidecar state are preserved.
+address is retired and its sidecar state and Serve config have been removed.
+Jellyfin media and settings are unaffected.
 
 ## Prerequisites
 
