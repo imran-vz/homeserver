@@ -1,6 +1,6 @@
 # Homeserver
 
-Docker Compose-based homeserver running on macOS (OrbStack). Services are exposed securely over **Tailscale** using a **Tailscale sidecar** per service.
+Docker Compose-based homeserver running on macOS (OrbStack). Containerized services use **Tailscale sidecars**. Jellyfin runs directly on macOS and uses the Mac mini's Tailscale connection.
 
 ## What’s in this repo
 
@@ -22,6 +22,17 @@ Services use two Docker networks:
 - `homelab_backend` — internal-only dependencies (e.g., databases)
 
 Tailscale sidecars must become healthy before the app container starts.
+
+### Jellyfin
+
+Jellyfin runs natively on the Mac mini and has no Tailscale sidecar.
+
+- Tailscale: `http://imrans-mac-mini:8096`
+- LAN fallback: `http://192.168.1.35:8096` (the current DHCP address)
+
+Keep Tailscale connected on the Mac mini and viewing device when using the
+Tailscale address. The former `https://jellyfin.tuna-mirzam.ts.net` sidecar
+address is retired. Jellyfin media, settings, and saved sidecar state are preserved.
 
 ## Prerequisites
 
@@ -77,6 +88,117 @@ For changes to this stack, validate without restarting unrelated services:
 docker compose config --quiet
 make help
 bash -n setup.sh
+```
+
+## Automatic startup, recovery, and free alerts
+
+The host-side supervisor in `scripts/watchdog.py` runs outside Docker. Every
+minute it checks the **OrbStack** Docker context and every service in this
+Compose file (including missing/stopped containers). Healthy means running and,
+when an image/container provides a healthcheck, `healthy`—not `starting`.
+
+On failure it:
+
+1. Requests `orbctl start` if Docker is unavailable, then waits for Docker.
+2. Checks `/Volumes/Backup` is a real mount and Photos, Books, and Immich storage
+   directories exist. It never creates substitute media directories.
+3. Validates Compose, then runs **`docker compose stop --timeout 30` followed by
+   `docker compose up -d --wait`**, preserving volumes and respecting dependency
+   health ordering. Missing images are pulled by Compose; it does not update
+   already-present images automatically. It does not use `restart` or `down`.
+4. Allows at most **20 minutes per recovery attempt**, including engine startup,
+   image loading and health waiting. Failed attempts are retried after a
+   **5-minute cooldown**, rather than continuously cycling the stack.
+
+An unhealthy container triggers recovery of the **whole stack**, so a failing
+optional service can interrupt working apps. Fix persistent unhealthy checks
+rather than allowing this to cycle indefinitely. The watchdog checks container
+health, not end-to-end Tailscale access, and does not supervise host-native Jellyfin.
+An unresponsive engine is asked to start but is **not forcibly killed**; if it
+cannot recover within the deadline, monitoring reports failure and retries later.
+
+### Install on this Mac
+
+Requires Python 3 (`/usr/bin/python3` is available on this host). First check:
+
+```sh
+python3 -m unittest discover -s tests -v
+python3 scripts/watchdog.py --check  # read-only; nonzero if anything is not healthy
+```
+
+Installing immediately enables recovery, including stopping an unhealthy stack:
+
+```sh
+python3 scripts/install-watchdog.py
+```
+
+The installer creates a user LaunchAgent with `KeepAlive` so macOS restarts the
+watchdog if it exits. This starts **at login**, not before login. OrbStack's
+`app.start_at_login` should remain enabled. After a power loss, FileVault/unlock
+and login may still require a person; this setup does not bypass that boundary.
+
+Logs rotate at `~/Library/Application Support/homeserver-watchdog/watchdog.log`.
+To inspect the agent:
+
+```sh
+launchctl print gui/$(id -u)/com.imran.homeserver-watchdog
+```
+
+### Free off-host alerts (Healthchecks.io)
+
+Create two checks on the Healthchecks.io hosted free plan (subject to its current
+limits), choose an email or other supported notification integration, and copy
+each check's secret HTTPS ping URL into:
+
+`~/Library/Application Support/homeserver-watchdog/config.json`
+
+```json
+{
+  "host_ping_url": "https://hc-ping.com/YOUR-HOST-CHECK-UUID",
+  "stack_ping_url": "https://hc-ping.com/YOUR-STACK-CHECK-UUID"
+}
+```
+
+- **Mac/watchdog:** period **1 minute**, grace **5 minutes**. An independent thread
+  pings even while recovery waits. A missing heartbeat alerts if the Mac sleeps,
+  loses power/network, logs out, or the watchdog stops. It cannot distinguish
+  those causes; it does not prove the hardware itself is down.
+- **Docker/apps:** period **1 minute**, grace **2 minutes**. Only a fully healthy
+  stack sends success. An observed failure sends `/fail` immediately; missing
+  heartbeats also detect a hung supervisor. Recovery sends success again.
+
+Keep URLs private (they allow anyone holding them to spoof heartbeats). The config
+is created with mode `0600`, outside the repository. Restart the agent after
+editing it, and use each check's test-notification feature to verify delivery:
+
+```sh
+launchctl kickstart -k gui/$(id -u)/com.imran.homeserver-watchdog
+```
+
+Alert delivery requires configuring this external account; without URLs the
+watchdog only logs locally. A service running on the Mac cannot independently
+alert when the Mac loses power. The host heartbeat monitors the Mac session and
+watchdog, **not an externally reachable HTTP endpoint**.
+
+### Maintenance / intentional shutdown
+
+Pause **before** stopping containers (do not pause during an active recovery;
+first unload the agent if one is already running):
+
+```sh
+touch "$HOME/Library/Application Support/homeserver-watchdog/paused"
+make down
+# Later:
+rm "$HOME/Library/Application Support/homeserver-watchdog/paused"
+```
+
+Pausing suppresses stack success heartbeats, so also pause the Docker/apps check
+in Healthchecks.io during planned maintenance. The host heartbeat continues.
+To disable completely:
+
+```sh
+launchctl bootout gui/$(id -u)/com.imran.homeserver-watchdog
+rm "$HOME/Library/LaunchAgents/com.imran.homeserver-watchdog.plist"
 ```
 
 ## Accessing services
